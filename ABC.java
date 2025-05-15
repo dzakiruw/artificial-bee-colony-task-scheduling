@@ -5,8 +5,8 @@ import org.cloudbus.cloudsim.Vm;
 import java.util.List;
 
 /**
- * A simplified implementation of the Artificial Bee Colony (ABC) algorithm
- * that consolidates all bee-related code into a single file.
+ * Implementation of the standard Artificial Bee Colony (ABC) algorithm
+ * following the classic ABC model with employed, onlooker, and scout bees.
  */
 public class ABC {
     private PopulationABC population;
@@ -16,51 +16,44 @@ public class ABC {
     private List<Vm> vmList;
     
     // ABC parameters
-    private int numBees;
-    private int numInactive;
-    private int numActive;
-    private int numScout;
-    private int maxVisits;
-    private double probMistake;
-    private double probPersuasion;
+    private int numBees;         // Total swarm size
+    private int numOnlookers;    // Number of onlooker bees (typically 50% of swarm)
+    private int numEmployed;     // Number of employed bees (typically 50% of swarm)
+    private int numScout;        // Number of scout bees (typically 1)
+    private int limit;           // Limit of visits before abandonment
+    private double probMistake;  // Kept for backward compatibility
+    private double probPersuasion; // Kept for backward compatibility
     
     /**
      * Constructor for ABC algorithm
      * 
      * @param cloudletList List of cloudlets to be scheduled
      * @param vmList List of VMs available
-     * @param numBees Total number of bees
-     * @param numInactive Number of inactive bees
-     * @param numActive Number of active bees
-     * @param numScout Number of scout bees
-     * @param maxVisits Maximum visit count before abandoning a solution
+     * @param numBees Total number of bees in the swarm
+     * @param limit Maximum number of visits before abandoning a food source
      * @param maxIterations Maximum number of iterations
-     * @param probMistake Probability of making a mistake
-     * @param probPersuasion Probability of persuasion for inactive bees
      */
-    public ABC(List<Cloudlet> cloudletList, List<Vm> vmList, int numBees, int numInactive, 
-               int numActive, int numScout, int maxVisits, int maxIterations, 
-               double probMistake, double probPersuasion) {
+    public ABC(List<Cloudlet> cloudletList, List<Vm> vmList, int numBees, 
+               int limit, int maxIterations) {
         this.cloudletList = cloudletList;
         this.vmList = vmList;
         this.numBees = numBees;
-        this.numInactive = numInactive;
-        this.numActive = numActive;
-        this.numScout = numScout;
-        this.maxVisits = maxVisits;
+        this.limit = limit;
         this.maxIterations = maxIterations;
-        this.probMistake = probMistake;
-        this.probPersuasion = probPersuasion;
         this.currentIteration = 0;
         
-        // Verify parameters
-        if (numBees != (numActive + numInactive + numScout)) {
-            throw new IllegalArgumentException("Sum of active, inactive and scout bees must equal total bees");
-            }
+        // In standard ABC, the swarm is divided equally between employed and onlooker bees
+        this.numEmployed = numBees / 2;
+        this.numOnlookers = numBees / 2;
+        this.numScout = 1;  // Standard ABC typically uses just 1 scout
+        
+        // Keep these parameters for backward compatibility
+        this.probMistake = 0.1;
+        this.probPersuasion = 0.5;
         
         // Initialize population
-        this.population = new PopulationABC(numBees, numInactive, numActive, numScout, 
-                                           maxVisits, probMistake, probPersuasion,
+        this.population = new PopulationABC(numBees, numOnlookers, numEmployed, numScout, 
+                                           limit, probMistake, probPersuasion,
                                            cloudletList.size(), vmList.size());
     }
     
@@ -73,11 +66,10 @@ public class ABC {
         // Initialize by calculating fitness for all bees
         population.calculateFitness(cloudletList, vmList);
         
-        // Main loop
-        while (currentIteration < maxIterations) {
-            // Perform one iteration
+        // Main loop - follows standard ABC algorithm steps
+        for (currentIteration = 1; currentIteration <= maxIterations; currentIteration++) {
+            System.out.println("ABC Iteration: " + currentIteration + "/" + maxIterations);
             population.iterate(cloudletList, vmList);
-                currentIteration++;
         }
         
         // Return the best solution found
@@ -91,22 +83,22 @@ public class ABC {
      */
     public IndividualABC getGlobalBest() {
         return population.getGlobalBest();
-        }
-        
-        /**
+    }
+    
+    /**
      * Get the global best fitness
      * 
      * @return The global best fitness
-         */
+     */
     public double getGlobalBestFitness() {
         return population.getGlobalBest().getFitness();
-        }
-        
-        /**
+    }
+    
+    /**
      * Get the makespan of the best solution
      * 
      * @return The makespan value
-         */
+     */
     public double getBestMakespan() {
         // Since fitness is 1/makespan, we need to invert it
         return 1.0 / getGlobalBestFitness();

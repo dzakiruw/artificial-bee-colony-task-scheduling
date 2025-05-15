@@ -139,45 +139,33 @@ public class CloudSimulation2 {
         System.out.println("\n=== ABC Algorithm Parameters ===");
         
         try {
-            // ABC Algorithm Parameters - we're using the "Inspired by EOBL" setup
-            int numberOfBees = 50;            // Medium population
-            int numberOfScout = 15;           // 30% scouts for highly randomized search
-            int numberOfInactive = 15;        // 30% inactive bees
-            int numberOfActive = 20;          // 40% active bees
-            int maxVisits = 5;                // Moderate threshold
-            double probMistake = 0.7;         // Very high mistake probability 
-            double probPersuasion = 0.5;      // Moderate persuasion 
-            int maxIterations = 15;           // Moderate number of iterations
+            // ABC Algorithm Parameters - Standard ABC configuration
+            int numberOfBees = 30;            // Total swarm size
+            int limit = 5;                   // Limit before abandonment
+            int maxIterations = 50;           // Number of iterations
             
             System.out.println("Problem Size:");
             System.out.println("Total Cloudlets: " + cloudlets.size());
             System.out.println("Total VMs: " + vms.size());
             
             System.out.println("\nABC Parameters:");
-            System.out.println("Number of Bees: " + numberOfBees);
-            System.out.println("Active Bees: " + numberOfActive);
-            System.out.println("Inactive Bees: " + numberOfInactive);
-            System.out.println("Scout Bees: " + numberOfScout);
-            System.out.println("Max Visits: " + maxVisits);
-            System.out.println("Probability of Mistake: " + probMistake);
-            System.out.println("Probability of Persuasion: " + probPersuasion);
+            System.out.println("Total Swarm Size: " + numberOfBees);
+            System.out.println("Employed Bees: " + (numberOfBees/2));
+            System.out.println("Onlooker Bees: " + (numberOfBees/2));
+            System.out.println("Scout Bees: 1");
+            System.out.println("Abandonment Limit: " + limit);
             System.out.println("Max Iterations: " + maxIterations);
             
             System.out.println("\n=== Starting ABC Optimization ===");
             System.out.println("Initializing bee population...");
             
-            // Create and run ABC algorithm
+            // Create and run ABC algorithm with standard parameters
             ABC abc = new ABC(
                 cloudlets,
                 vms,
                 numberOfBees,
-                numberOfInactive,
-                numberOfActive,
-                numberOfScout,
-                maxVisits,
-                maxIterations,
-                probMistake,
-                probPersuasion
+                limit,
+                maxIterations
             );
             
             System.out.println("Running ABC algorithm for " + maxIterations + " iterations...");

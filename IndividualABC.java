@@ -6,21 +6,21 @@ import java.util.Random;
 
 public class IndividualABC {
     private int id;
-    private int type; // 0=inactive, 1=active, 2=scout
+    private int type; // 0=onlooker, 1=employed, 2=scout
     private int[] vmAllocation;
     private int visitCount;
     private double fitness;
     
     // Constants for bee types
-    public static final int INACTIVE = 0;
-    public static final int ACTIVE = 1;
-    public static final int SCOUT = 2;
+    public static final int ONLOOKER = 0;  // was INACTIVE
+    public static final int EMPLOYED = 1;  // was ACTIVE
+    public static final int SCOUT = 2;     // stays the same
     
     /**
      * Constructor for an individual bee solution
      * 
      * @param id Unique identifier for the bee
-     * @param type Type of bee (INACTIVE, ACTIVE, or SCOUT)
+     * @param type Type of bee (ONLOOKER, EMPLOYED, or SCOUT)
      * @param cloudletCount Number of cloudlets to allocate
      */
     public IndividualABC(int id, int type, int cloudletCount) {

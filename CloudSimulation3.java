@@ -115,7 +115,7 @@ public class CloudSimulation3 {
             broker.submitCloudletList(cloudletList);
 
             // Run ABC-EOBL algorithm
-            runABCEOBLAlgorithm(cloudletList, vmlist);
+            runABCAlgorithm(cloudletList, vmlist);
 
             System.out.println("Starting the simulation...");
             CloudSim.startSimulation();
@@ -133,151 +133,166 @@ public class CloudSimulation3 {
         }
     }
 
-    private static void runABCEOBLAlgorithm(List<Cloudlet> cloudlets, List<Vm> vms) {
-        System.out.println("\n=== ABC-EOBL Algorithm Parameters ===");
+    private static void runABCAlgorithm(List<Cloudlet> cloudlets, List<Vm> vms) {
+        System.out.println("\n=== ABC Algorithm with EOBL Parameters ===");
         
         try {
-            // Step 1: Initialize
-            int totalCloudlets = cloudlets.size();
-            int totalVMs = vms.size();
+            // 1-3: Define problem dimension & parameters - sesuai bagian C
+            int numBees = 50;             // Swarm size
+            int limit = 10;               // Abandonment threshold
+            int maxIterations = 20;       // Max iterations
+            double probEOBL = 0.7;        // EOBL probability
+            double jumpRate = 0.3;        // EOBL jump rate
             
-            // ABC-EOBL Parameters - Optimized for performance
-            // int numberOfBees = 30;         // Reduced from 100 to 30 for efficiency
-            // int numberOfScout = 5;         // Reduced from 15 to 5
-            // int numberOfInactive = 10;     // Reduced from 25 to 10
-            // int numberOfActive = 15;       // Reduced from 60 to 15
-            // int maxVisits = 5;             // Reduced from 15 to 5
-            // double probMistake = 0.2;      // Probability of making mistake
-            // double probPersuasion = 0.6;   // Probability of persuasion for inactive bees
-            // double probEOBL = 0.3;         // Probability of applying EOBL
-            // int maxIterations = 5;         // Reduced from 25 to 5
+            // Distribusi lebah standar ABC
+            int numEmployed = numBees / 2;  // 50% employed
+            int numOnlooker = numBees / 2;  // 50% onlooker
+            int numScout = 1;               // 1 scout
             
-            int numberOfBees = 50;            // Medium population
-            int numberOfScout = 15;           // 30% scouts for highly randomized search
-            int numberOfInactive = 15;        // 30% inactive bees
-            int numberOfActive = 20;          // 40% active bees
-            int maxVisits = 5;                // Moderate threshold
-            double probMistake = 0.7;         // Very high mistake probability (like EOBL 0.7)
-            double probPersuasion = 0.5;      // Moderate persuasion 
-            int maxIterations = 15;           // Moderate number of iterations
-            double probEOBL = 0.3;           // Probability of applying EOBL
-            
-            // EOBL specific parameters
-            double jumpRate = 0.7;         // Jump rate for opposition-based solutions
-            
-            System.out.println("Problem Size:");
-            System.out.println("Total Cloudlets: " + totalCloudlets);
-            System.out.println("Total VMs: " + totalVMs);
-            
-            System.out.println("\nABC-EOBL Parameters:");
-            System.out.println("Number of Bees: " + numberOfBees);
-            System.out.println("Active Bees: " + numberOfActive);
-            System.out.println("Inactive Bees: " + numberOfInactive);
-            System.out.println("Scout Bees: " + numberOfScout);
-            System.out.println("Max Visits: " + maxVisits);
-            System.out.println("Probability of Mistake: " + probMistake);
-            System.out.println("Probability of Persuasion: " + probPersuasion);
-            System.out.println("Probability of EOBL: " + probEOBL);
+            System.out.println("ABC-EOBL Parameters:");
+            System.out.println("Swarm Size: " + numBees);
+            System.out.println("Employed Bees: " + numEmployed);
+            System.out.println("Onlooker Bees: " + numOnlooker);
+            System.out.println("Scout Bee: " + numScout);
+            System.out.println("Limit: " + limit);
+            System.out.println("EOBL Probability: " + probEOBL);
             System.out.println("EOBL Jump Rate: " + jumpRate);
             System.out.println("Max Iterations: " + maxIterations);
             
-            // Initialize population and solutions
-            List<int[]> population = new ArrayList<>();
-            double[] fitness = new double[numberOfBees];
-            int[] visits = new int[numberOfBees];
-            int[] beeTypes = new int[numberOfBees]; // 0=inactive, 1=active, 2=scout
+            // 4: Initialize population
+            List<BeeABC> population = new ArrayList<>();
+            Random random = new Random();
             
-            // Find bounds for EOBL
-            int lowerBound = 0;
-            int upperBound = totalVMs - 1;
-            
-            // Step 2: Generate Random Solution for each bee
-            for (int i = 0; i < numberOfBees; i++) {
-                int[] solution = new int[totalCloudlets];
-                for (int j = 0; j < totalCloudlets; j++) {
-                    solution[j] = random.nextInt(totalVMs);
+            // Generate random solutions for all bees
+            for (int i = 0; i < numBees; i++) {
+                int[] solution = new int[cloudlets.size()];
+                for (int j = 0; j < cloudlets.size(); j++) {
+                    solution[j] = random.nextInt(vms.size());
                 }
-                population.add(solution);
                 
-                // Set bee types
-                if (i < numberOfActive) {
-                    beeTypes[i] = 1; // Active
-                } else if (i < numberOfActive + numberOfInactive) {
-                    beeTypes[i] = 0; // Inactive
+                // Assign bee types following correct distribution
+                int type;
+                if (i < numEmployed) {
+                    type = 1; // Employed
                 } else {
-                    beeTypes[i] = 2; // Scout
+                    type = 0; // Onlooker
                 }
                 
-                // Initialize visits
-                visits[i] = 0;
-                
-                // Calculate initial fitness
-                fitness[i] = calculateFitness(solution, cloudlets, vms);
+                BeeABC bee = new BeeABC(i, type, solution.clone());
+                population.add(bee);
             }
+            
+            // Create one special scout bee
+            int[] scoutSolution = new int[cloudlets.size()];
+            for (int j = 0; j < cloudlets.size(); j++) {
+                scoutSolution[j] = random.nextInt(vms.size());
+            }
+            BeeABC scoutBee = new BeeABC(numBees, 2, scoutSolution); // Type 2 = Scout
+            population.add(scoutBee);
+            
+            // 5: Evaluate initial fitness
+            for (BeeABC bee : population) {
+                double fitness = calculateFitness(bee.getSolution(), cloudlets, vms);
+                bee.setFitness(fitness);
+            }
+            
+            // Track global best solution
+            BeeABC globalBest = findBestBee(population);
+            System.out.println("Initial best makespan: " + (1.0/globalBest.getFitness()));
             
             // Apply EOBL to initial population
-            applyEliteOppositionBasedLearning(population, fitness, totalVMs, cloudlets, vms, probEOBL, jumpRate, lowerBound, upperBound);
-            
-            // Step 3: Update Current Best Solution
-            int[] globalBestSolution = null;
-            double globalBestFitness = Double.MAX_VALUE;
-            
-            // Find initial best solution
-            for (int i = 0; i < numberOfBees; i++) {
-                if (fitness[i] < globalBestFitness) {
-                    globalBestFitness = fitness[i];
-                    globalBestSolution = population.get(i).clone();
-                }
+            if (random.nextDouble() < probEOBL) {
+                applyEOBL(population, globalBest, vms.size(), probEOBL, jumpRate, cloudlets, vms);
+                globalBest = findBestBee(population); // Update after EOBL
             }
             
-            System.out.println("Initial best fitness: " + globalBestFitness);
-            System.out.println("Initial best makespan: " + (1.0/globalBestFitness));
-            
-            // Main loop
-            int currentIteration = 1;
-            while (currentIteration <= maxIterations) {
-                System.out.println("\nIteration " + currentIteration + " of " + maxIterations);
+            // 6-23: Main loop - iterative process
+            for (int iteration = 1; iteration <= maxIterations; iteration++) {
+                System.out.println("\nIteration " + iteration + "/" + maxIterations);
                 
-                // Step 4: Process each bee
-                for (int k = 0; k < numberOfBees; k++) {
-                    if (beeTypes[k] == 1) { // Active bee
-                        processActiveBee(k, population, fitness, visits, totalVMs, totalCloudlets, 
-                                      cloudlets, vms, probMistake, maxVisits, probEOBL, jumpRate, 
-                                      lowerBound, upperBound);
-                    } else if (beeTypes[k] == 2) { // Scout bee
-                        processScoutBee(k, population, fitness, totalVMs, totalCloudlets, 
-                                     cloudlets, vms, probEOBL, jumpRate, lowerBound, upperBound);
-                    } else { // Inactive bee
-                        processInactiveBee(k, population, fitness, beeTypes, probPersuasion, 
-                                        globalBestSolution, cloudlets, vms, totalVMs);
+                // 7-10: Employed Bee Phase - sesuai flowchart "Employed Bee Step"
+                for (BeeABC bee : population) {
+                    if (bee.getType() == 1) { // Employed bee
+                        // 8: Find new food source & evaluate
+                        int[] neighborSolution = generateNeighbor(bee.getSolution(), vms.size());
+                        double neighborFitness = calculateFitness(neighborSolution, cloudlets, vms);
+                        
+                        // 9: Apply greedy selection
+                        if (neighborFitness > bee.getFitness()) {
+                            bee.setSolution(neighborSolution.clone());
+                            bee.setFitness(neighborFitness);
+                            bee.resetLimit();
+                        } else {
+                            bee.incrementLimit();
+                        }
                     }
                 }
                 
-                // Apply EOBL to the population every iteration
+                // 11: Calculate probability for each food source
+                double[] probabilities = calculateProbabilities(population);
+                
+                // 12-17: Onlooker Bee Phase - sesuai flowchart "Onlooker Bee Step"
+                for (BeeABC bee : population) {
+                    if (bee.getType() == 0) { // Onlooker bee
+                        // 13: Choose food source based on probability
+                        BeeABC selectedBee = selectFoodSource(population, probabilities);
+                        
+                        // 14-15: Produce & evaluate new food source
+                        int[] neighborSolution = generateNeighbor(selectedBee.getSolution(), vms.size());
+                        double neighborFitness = calculateFitness(neighborSolution, cloudlets, vms);
+                        
+                        // 16: Apply greedy selection to the EMPLOYED bee (not onlooker)
+                        if (neighborFitness > selectedBee.getFitness()) {
+                            selectedBee.setSolution(neighborSolution.clone());
+                            selectedBee.setFitness(neighborFitness);
+                            selectedBee.resetLimit();
+                        } else {
+                            selectedBee.incrementLimit();
+                        }
+                    }
+                }
+                
+                // Store Best Food Source Solution - sesuai flowchart
+                BeeABC currentBest = findBestBee(population);
+                if (currentBest.getFitness() > globalBest.getFitness()) {
+                    globalBest = new BeeABC(-1, -1, currentBest.getSolution().clone());
+                    globalBest.setFitness(currentBest.getFitness());
+                    System.out.println("New best makespan: " + (1.0/globalBest.getFitness()));
+                }
+                
+                // 18-21: Scout Bee Phase - sesuai flowchart "Scout Bee in the Colony?"
+                boolean scoutFound = false;
+                for (BeeABC bee : population) {
+                    // 19: Check if any employed bee exceeds limit
+                    if (bee.getType() == 1 && bee.getLimit() > limit) {
+                        scoutFound = true;
+                        // 20: Send scout to random food source
+                        int[] newSolution = new int[cloudlets.size()];
+                        for (int j = 0; j < cloudlets.size(); j++) {
+                            newSolution[j] = random.nextInt(vms.size());
+                        }
+                        bee.setSolution(newSolution);
+                        bee.setFitness(calculateFitness(newSolution, cloudlets, vms));
+                        bee.resetLimit();
+                    }
+                }
+                
+                // Apply EOBL enhancement after standard ABC steps
                 if (random.nextDouble() < probEOBL) {
-                    applyEliteOppositionBasedLearning(population, fitness, totalVMs, cloudlets, vms, 
-                                                   probEOBL, jumpRate, lowerBound, upperBound);
+                    applyEOBL(population, globalBest, vms.size(), probEOBL, jumpRate, cloudlets, vms);
                 }
                 
-                // Update global best solution
-                for (int i = 0; i < numberOfBees; i++) {
-                    if (fitness[i] < globalBestFitness) {
-                        globalBestFitness = fitness[i];
-                        globalBestSolution = population.get(i).clone();
-                        System.out.println("New best fitness: " + globalBestFitness);
-                        System.out.println("New best makespan: " + (1.0/globalBestFitness));
-                    }
-                }
-                
-                // Step 5: Increment iteration
-                currentIteration++;
+                // 22: Increment iteration - handled by for loop
             }
             
-            // Apply the best solution to cloudlets
-            System.out.println("\nApplying best solution with fitness: " + globalBestFitness);
-            System.out.println("Best makespan: " + (1.0/globalBestFitness));
-            for (int i = 0; i < totalCloudlets; i++) {
-                cloudlets.get(i).setVmId(globalBestSolution[i]);
+            // 24: End - return final best solution
+            System.out.println("\nFinal Solution:");
+            System.out.println("Best fitness: " + globalBest.getFitness());
+            System.out.println("Best makespan: " + (1.0/globalBest.getFitness()));
+            
+            // Apply best solution to cloudlets
+            for (int i = 0; i < cloudlets.size(); i++) {
+                cloudlets.get(i).setVmId(globalBest.getSolution()[i]);
             }
             
         } catch (Exception e) {
@@ -285,380 +300,184 @@ public class CloudSimulation3 {
             Log.printLine("ABC-EOBL Algorithm terminated due to an error");
         }
     }
-    
-    // Elite Opposition-Based Learning implementation
-    private static void applyEliteOppositionBasedLearning(List<int[]> population, double[] fitness, 
-                                                      int totalVMs, List<Cloudlet> cloudlets, 
-                                                      List<Vm> vms, double probEOBL, double jumpRate,
-                                                      int lowerBound, int upperBound) {
-        // Find the elite solution (best fitness)
-        int eliteIndex = 0;
-        double bestFitness = Double.MAX_VALUE;
+
+    // Implementasi EOBL: Elite Opposition-Based Learning
+    private static void applyEOBL(List<BeeABC> population, BeeABC elite, 
+                                int numVMs, double probEOBL, double jumpRate,
+                                List<Cloudlet> cloudlets, List<Vm> vms) {
+        Random random = new Random();
+        int[] eliteSolution = elite.getSolution();
         
-        for (int i = 0; i < population.size(); i++) {
-            if (fitness[i] < bestFitness) {
-                bestFitness = fitness[i];
-                eliteIndex = i;
-            }
-        }
-        
-        int[] eliteSolution = population.get(eliteIndex);
-        
-        // Apply EOBL to each solution with probability
-        for (int i = 0; i < population.size(); i++) {
-            if (random.nextDouble() < probEOBL && i != eliteIndex) {
-                int[] currentSolution = population.get(i);
-                int[] oppositionSolution = generateEliteOppositionSolution(currentSolution, eliteSolution, 
-                                                                        jumpRate, lowerBound, upperBound);
+        for (BeeABC bee : population) {
+            // Skip elite bee itself
+            if (bee == elite) continue;
+            
+            // Apply EOBL with probability
+            if (random.nextDouble() < probEOBL) {
+                int[] currentSolution = bee.getSolution();
+                int[] oppositionSolution = new int[currentSolution.length];
                 
-                // Calculate fitness of the opposition solution
+                // Generate elite-based opposition solution
+                for (int i = 0; i < oppositionSolution.length; i++) {
+                    if (random.nextDouble() < jumpRate) {
+                        // Opposition: LB + UB - x
+                        oppositionSolution[i] = 0 + (numVMs-1) - currentSolution[i];
+                        
+                        // Ensure valid range
+                        if (oppositionSolution[i] < 0) oppositionSolution[i] = 0;
+                        if (oppositionSolution[i] >= numVMs) oppositionSolution[i] = numVMs-1;
+                        
+                        // Mix with elite solution (key feature of EOBL)
+                        if (random.nextDouble() < 0.5) {
+                            oppositionSolution[i] = eliteSolution[i];
+                        }
+                    } else {
+                        // Keep original assignment
+                        oppositionSolution[i] = currentSolution[i];
+                    }
+                }
+                
+                // Evaluate opposition solution
                 double oppositionFitness = calculateFitness(oppositionSolution, cloudlets, vms);
                 
-                // Replace with opposition solution if it's better
-                if (oppositionFitness < fitness[i]) {
-                    population.set(i, oppositionSolution);
-                    fitness[i] = oppositionFitness;
-                }
-            }
-        }
-    }
-    
-    // Generate opposition-based solution using elite solution as reference
-    private static int[] generateEliteOppositionSolution(int[] current, int[] elite, double jumpRate, 
-                                                     int lowerBound, int upperBound) {
-        int[] opposition = new int[current.length];
-        
-        for (int i = 0; i < current.length; i++) {
-            // Apply EOBL with jump rate
-            if (random.nextDouble() < jumpRate) {
-                // Using the elite solution information for opposition
-                opposition[i] = lowerBound + upperBound - current[i];
-                
-                // Ensure the VM is within bounds
-                if (opposition[i] < lowerBound) {
-                    opposition[i] = lowerBound;
-                } else if (opposition[i] > upperBound) {
-                    opposition[i] = upperBound;
-                }
-                
-                // Mix with elite solution information (key feature of EOBL)
-                if (random.nextDouble() < 0.5) {
-                    opposition[i] = elite[i];
-                }
-            } else {
-                // Keep the original assignment
-                opposition[i] = current[i];
-            }
-        }
-        
-        return opposition;
-    }
-    
-    // Process active bees
-    private static void processActiveBee(int beeIndex, List<int[]> population, double[] fitness, 
-                                      int[] visits, int totalVMs, int totalCloudlets, 
-                                      List<Cloudlet> cloudlets, List<Vm> vms, double probMistake, 
-                                      int maxVisits, double probEOBL, double jumpRate, 
-                                      int lowerBound, int upperBound) {
-        // Get current solution
-        int[] currentSolution = population.get(beeIndex);
-        double currentFitness = fitness[beeIndex];
-        
-        // Generate neighbor solution
-        int[] neighborSolution = generateNeighborSolution(currentSolution, totalVMs);
-        
-        // Apply EOBL with probability (EOBL enhancement)
-        if (random.nextDouble() < probEOBL) {
-            // Find elite (best solution so far)
-            int eliteIndex = 0;
-            double bestFitness = Double.MAX_VALUE;
-            
-            for (int i = 0; i < population.size(); i++) {
-                if (fitness[i] < bestFitness) {
-                    bestFitness = fitness[i];
-                    eliteIndex = i;
-                }
-            }
-            
-            int[] eliteSolution = population.get(eliteIndex);
-            
-            // Generate elite-opposition solution
-            int[] oppositionSolution = generateEliteOppositionSolution(neighborSolution, eliteSolution, 
-                                                                    jumpRate, lowerBound, upperBound);
-            
-            double neighborFitness = calculateFitness(neighborSolution, cloudlets, vms);
-            double oppositionFitness = calculateFitness(oppositionSolution, cloudlets, vms);
-            
-            // Keep the better solution between neighbor and opposition
-            if (oppositionFitness < neighborFitness) {
-                neighborSolution = oppositionSolution;
-            }
-        }
-        
-        // Calculate neighbor fitness
-        double neighborFitness = calculateFitness(neighborSolution, cloudlets, vms);
-        
-        // Generate a random number for probability check
-        double prob = random.nextDouble();
-        
-        // IMPORTANT: In our fitness calculation, LOWER values are BETTER (makespan)
-        // So the comparison logic is reversed from the pseudocode
-        
-        // If neighbor solution is better than current solution
-        if (neighborFitness < currentFitness) {
-            if (prob < probMistake) {
-                // Mistakenly reject the better solution
-                visits[beeIndex]++;
-            } else {
-                // Accept the better solution
-                population.set(beeIndex, neighborSolution);
-                fitness[beeIndex] = neighborFitness;
-                visits[beeIndex] = 0;
-                
-                // Update global best solution if needed - this happens in main loop
-                
-                // Perform waggle dance - share information with other bees
-                doWaggleDance(beeIndex, neighborSolution, neighborFitness, population, fitness);
-            }
-        } 
-        // If current solution is better than neighbor solution
-        else {
-            if (prob < probMistake) {
-                // Mistakenly accept worse solution
-                population.set(beeIndex, neighborSolution);
-                fitness[beeIndex] = neighborFitness;
-                visits[beeIndex] = 0;
-                
-                // Perform waggle dance even with the worse solution
-                doWaggleDance(beeIndex, neighborSolution, neighborFitness, population, fitness);
-            } else {
-                // Correctly reject worse solution
-                visits[beeIndex]++;
-            }
-        }
-        
-        // Check if active bee should become inactive due to exceeding max visits
-        if (visits[beeIndex] > maxVisits) {
-            // The bee type change would need the beeTypes array which we don't have access to
-            // For now, just reset the solution as we did before
-            int[] newSolution = new int[totalCloudlets];
-            for (int i = 0; i < totalCloudlets; i++) {
-                newSolution[i] = random.nextInt(totalVMs);
-            }
-            population.set(beeIndex, newSolution);
-            fitness[beeIndex] = calculateFitness(newSolution, cloudlets, vms);
-            visits[beeIndex] = 0;
-            
-            // Note: In a full implementation, we would need to:
-            // 1. Change this bee from active to inactive
-            // 2. Select a random inactive bee to become active
-            // 3. This requires access to the beeTypes array
-        }
-    }
-    
-    // Implementation of DoWaggleDance - share information with other bees
-    private static void doWaggleDance(int beeIndex, int[] solution, double solutionFitness, 
-                                    List<int[]> population, double[] fitness) {
-        // Determine the influence radius - how many bees are affected
-        int influenceRadius = Math.max(1, population.size() / 10);
-        
-        // Share information with nearby bees (those with adjacent indices)
-        for (int i = 1; i <= influenceRadius; i++) {
-            // Calculate indices with wraparound to stay within population bounds
-            int followerIndex1 = (beeIndex + i) % population.size();
-            int followerIndex2 = (beeIndex - i + population.size()) % population.size();
-            
-            // Followers have a chance to be influenced by the waggle dance
-            double influenceProbability = 0.5 / i; // Probability decreases with distance
-            
-            // Try to influence first follower
-            if (random.nextDouble() < influenceProbability) {
-                // Create a slightly modified version of the solution
-                int[] modifiedSolution = solution.clone();
-                int modificationPoint = random.nextInt(modifiedSolution.length);
-                modifiedSolution[modificationPoint] = random.nextInt(solution.length);
-                
-                // Only accept if it's better than the follower's current solution
-                if (fitness[followerIndex1] > solutionFitness) {
-                    population.set(followerIndex1, modifiedSolution);
-                    fitness[followerIndex1] = solutionFitness * (1 + random.nextDouble() * 0.1 - 0.05);
-                }
-            }
-            
-            // Try to influence second follower
-            if (random.nextDouble() < influenceProbability) {
-                // Create a slightly modified version of the solution
-                int[] modifiedSolution = solution.clone();
-                int modificationPoint = random.nextInt(modifiedSolution.length);
-                modifiedSolution[modificationPoint] = random.nextInt(solution.length);
-                
-                // Only accept if it's better than the follower's current solution
-                if (fitness[followerIndex2] > solutionFitness) {
-                    population.set(followerIndex2, modifiedSolution);
-                    fitness[followerIndex2] = solutionFitness * (1 + random.nextDouble() * 0.1 - 0.05);
+                // Apply if better
+                if (oppositionFitness > bee.getFitness()) {
+                    bee.setSolution(oppositionSolution);
+                    bee.setFitness(oppositionFitness);
                 }
             }
         }
     }
 
-    // Process scout bees
-    private static void processScoutBee(int beeIndex, List<int[]> population, double[] fitness, 
-                                     int totalVMs, int totalCloudlets, List<Cloudlet> cloudlets, 
-                                     List<Vm> vms, double probEOBL, double jumpRate, 
-                                     int lowerBound, int upperBound) {
-        // Generate a completely new random solution
-        int[] newSolution = new int[totalCloudlets];
-        for (int i = 0; i < totalCloudlets; i++) {
-            newSolution[i] = random.nextInt(totalVMs);
+    // Kelas untuk representasi lebah
+    private static class BeeABC {
+        private int id;
+        private int type; // 0=onlooker, 1=employed, 2=scout
+        private int[] solution;
+        private double fitness;
+        private int limitCount;
+        
+        public BeeABC(int id, int type, int[] solution) {
+            this.id = id;
+            this.type = type;
+            this.solution = solution;
+            this.fitness = 0.0;
+            this.limitCount = 0;
         }
         
-        // Apply EOBL with probability
-        if (random.nextDouble() < probEOBL) {
-            // Find elite solution
-            int eliteIndex = 0;
-            double bestFitness = Double.MAX_VALUE;
-            
-            for (int i = 0; i < population.size(); i++) {
-                if (fitness[i] < bestFitness) {
-                    bestFitness = fitness[i];
-                    eliteIndex = i;
-                }
-            }
-            
-            int[] eliteSolution = population.get(eliteIndex);
-            
-            // Generate elite opposition solution
-            int[] oppositionSolution = generateEliteOppositionSolution(newSolution, eliteSolution, 
-                                                                   jumpRate, lowerBound, upperBound);
-            
-            double newFitness = calculateFitness(newSolution, cloudlets, vms);
-            double oppositionFitness = calculateFitness(oppositionSolution, cloudlets, vms);
-            
-            // Keep the better solution
-            if (oppositionFitness < newFitness) {
-                newSolution = oppositionSolution;
-                fitness[beeIndex] = oppositionFitness;
-            } else {
-                fitness[beeIndex] = newFitness;
-            }
-        } else {
-            fitness[beeIndex] = calculateFitness(newSolution, cloudlets, vms);
-        }
+        // Getter dan setter
+        public int getId() { return id; }
+        public int getType() { return type; }
+        public int[] getSolution() { return solution; }
+        public double getFitness() { return fitness; }
+        public int getLimit() { return limitCount; }
         
-        // Update solution
-        population.set(beeIndex, newSolution);
+        public void setType(int type) { this.type = type; }
+        public void setSolution(int[] solution) { this.solution = solution; }
+        public void setFitness(double fitness) { this.fitness = fitness; }
+        public void incrementLimit() { this.limitCount++; }
+        public void resetLimit() { this.limitCount = 0; }
     }
-    
-    // Process inactive bees
-    private static void processInactiveBee(int beeIndex, List<int[]> population, double[] fitness,
-                                        int[] beeTypes, double probPersuasion, int[] globalBestSolution,
-                                        List<Cloudlet> cloudlets, List<Vm> vms, int totalVMs) {
-        // Find the best active bee
-        int bestActiveBee = -1;
-        double bestFitness = Double.MAX_VALUE;
+
+    // Fungsi helper tambahan yang diperlukan
+    private static int[] generateNeighbor(int[] solution, int numVMs) {
+        int[] neighbor = solution.clone();
+        Random random = new Random();
         
-        for (int i = 0; i < beeTypes.length; i++) {
-            if (beeTypes[i] == 1) { // Active bee
-                if (fitness[i] < bestFitness) {
-                    bestFitness = fitness[i];
-                    bestActiveBee = i;
-                }
-            }
-        }
+        // Ubah satu assignment cloudlet ke VM berbeda
+        int pos = random.nextInt(neighbor.length);
+        int currentVM = neighbor[pos];
+        int newVM;
         
-        if ((bestActiveBee != -1 && random.nextDouble() < probPersuasion) || globalBestSolution != null) {
-            // Copy the solution from either best active bee or global best with small modification
-            int[] baseSolution;
-            
-            if (bestActiveBee != -1 && (globalBestSolution == null || random.nextDouble() < 0.5)) {
-                baseSolution = population.get(bestActiveBee).clone();
-            } else {
-                baseSolution = globalBestSolution.clone();
-            }
-            
-            int[] newSolution = baseSolution.clone();
-            
-            // Make small changes to avoid exact copying
-            int numChanges = 1 + random.nextInt(3); // 1-3 changes
-            for (int i = 0; i < numChanges; i++) {
-                if (newSolution.length > 0) {
-                    int pos = random.nextInt(newSolution.length);
-                    int randomVM = random.nextInt(totalVMs);
-                    newSolution[pos] = randomVM;
-                }
-            }
-            
-            // Update solution and fitness
-            population.set(beeIndex, newSolution);
-            fitness[beeIndex] = calculateFitness(newSolution, cloudlets, vms);
-        } else {
-            // Generate completely new solution if no persuasion
-            int[] newSolution = new int[population.get(beeIndex).length];
-            for (int i = 0; i < newSolution.length; i++) {
-                newSolution[i] = random.nextInt(totalVMs);
-            }
-            population.set(beeIndex, newSolution);
-            fitness[beeIndex] = calculateFitness(newSolution, cloudlets, vms);
-        }
-    }
-    
-    // Generate neighbor solution
-    private static int[] generateNeighborSolution(int[] current, int totalVMs) {
-        int[] neighbor = current.clone();
+        do {
+            newVM = random.nextInt(numVMs);
+        } while (newVM == currentVM && numVMs > 1);
         
-        // Change multiple positions to create better neighborhood
-        int numChanges = 1 + random.nextInt(3); // 1-3 changes
-        for (int i = 0; i < numChanges; i++) {
-            if (neighbor.length > 0) {
-                int pos = random.nextInt(neighbor.length);
-                int currentVM = neighbor[pos];
-                int newVM;
-                
-                // Select a different VM
-                do {
-                    newVM = random.nextInt(totalVMs);
-                } while (newVM == currentVM && totalVMs > 1);
-                
-                neighbor[pos] = newVM;
-            }
-        }
-        
+        neighbor[pos] = newVM;
         return neighbor;
     }
 
-    // Calculate fitness - optimized version
     private static double calculateFitness(int[] solution, List<Cloudlet> cloudlets, List<Vm> vms) {
-        // Prepare VM load tracking arrays - only calculate once
-        double[] vmLoads = new double[vms.size()];
-        double[] processingTimes = new double[vms.size()];
+        // Hitung makespan
+        double[] vmCompletionTimes = new double[vms.size()];
         
-        // Calculate load for each VM
-        for (int i = 0; i < cloudlets.size(); i++) {
-            int vmIndex = solution[i];
+        for (int i = 0; i < solution.length; i++) {
+            int vmId = solution[i];
+            Cloudlet cloudlet = cloudlets.get(i);
+            Vm vm = vms.get(vmId);
             
-            // Skip invalid solutions
-            if (vmIndex >= vms.size()) {
-                return Double.MAX_VALUE;
-            }
-            
-            double cloudletLength = cloudlets.get(i).getCloudletLength();
-            double vmMips = vms.get(vmIndex).getMips();
-            
-            vmLoads[vmIndex] += cloudletLength;
-            processingTimes[vmIndex] += cloudletLength / vmMips;
+            double executionTime = (double)cloudlet.getCloudletLength() / vm.getMips();
+            vmCompletionTimes[vmId] += executionTime;
         }
         
-        // Find makespan (maximum processing time on any VM)
+        // Makespan = waktu penyelesaian maksimum
         double makespan = 0;
-        for (double time : processingTimes) {
-            if (time > makespan) {
-                makespan = time;
+        for (double time : vmCompletionTimes) {
+            if (time > makespan) makespan = time;
+        }
+        
+        // Fitness adalah inverse dari makespan (lebih tinggi = lebih baik)
+        return 1.0 / makespan;
+    }
+
+    private static double[] calculateProbabilities(List<BeeABC> population) {
+        // Hitung untuk employed bees saja
+        List<BeeABC> employedBees = new ArrayList<>();
+        for (BeeABC bee : population) {
+            if (bee.getType() == 1) { // Employed
+                employedBees.add(bee);
             }
         }
         
-        // For ABC, fitness is inverse of makespan (higher is better)
-        // We switch this to minimize because our other code expects minimization
-        return makespan;
+        double totalFitness = 0;
+        for (BeeABC bee : employedBees) {
+            totalFitness += bee.getFitness();
+        }
+        
+        double[] probabilities = new double[employedBees.size()];
+        for (int i = 0; i < employedBees.size(); i++) {
+            probabilities[i] = employedBees.get(i).getFitness() / totalFitness;
+        }
+        
+        return probabilities;
+    }
+
+    private static BeeABC selectFoodSource(List<BeeABC> population, double[] probabilities) {
+        // Roulette wheel selection
+        List<BeeABC> employedBees = new ArrayList<>();
+        for (BeeABC bee : population) {
+            if (bee.getType() == 1) { // Employed
+                employedBees.add(bee);
+            }
+        }
+        
+        Random random = new Random();
+        double r = random.nextDouble();
+        double sum = 0;
+        
+        for (int i = 0; i < probabilities.length; i++) {
+            sum += probabilities[i];
+            if (r <= sum) {
+                return employedBees.get(i);
+            }
+        }
+        
+        // Fallback
+        return employedBees.get(random.nextInt(employedBees.size()));
+    }
+
+    private static BeeABC findBestBee(List<BeeABC> population) {
+        BeeABC best = null;
+        double bestFitness = Double.NEGATIVE_INFINITY;
+        
+        for (BeeABC bee : population) {
+            if (bee.getFitness() > bestFitness) {
+                bestFitness = bee.getFitness();
+                best = bee;
+            }
+        }
+        
+        return best;
     }
 
     // Method to create Cloudlets
