@@ -36,9 +36,8 @@ import org.cloudbus.cloudsim.power.models.PowerModelLinear;
 import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
-import org.cloudbus.cloudsim.examples.ABC;
 
-public class CloudSimulation2 {
+public class CloudSimulationABC {
 
     private static PowerDatacenter datacenter1, datacenter2, datacenter3, datacenter4, datacenter5, datacenter6;
     private static List<Cloudlet> cloudletList;
@@ -48,13 +47,20 @@ public class CloudSimulation2 {
     private static final int NUM_TRIALS = 10;
     private static final Random random = new Random();
 
+    // EOBL Configuration - set to false to disable
+    private static final boolean USE_EOBL = true;  // Set to false to use standard ABC
+    private static final double EOBL_PROBABILITY = 0.7;  // Probability of applying EOBL
+    private static final double EOBL_JUMP_RATE = 0.3;    // Jump rate for EOBL
+
     public static void main(String[] args) {
         Locale.setDefault(new Locale("en", "US"));
-        Log.printLine("Starting Cloud Simulation with ABC Algorithm...");
+        String algorithmName = USE_EOBL ? "ABC-EOBL" : "ABC";
+        Log.printLine("Starting Cloud Simulation with " + algorithmName + " Algorithm...");
 
         try {
             // Create CSV file for results
-            csvWriter = new FileWriter("ABC_Results.csv");
+            String csvFileName = USE_EOBL ? "ABC_EOBL_Results.csv" : "ABC_Results.csv";
+            csvWriter = new FileWriter(csvFileName);
             csvWriter.write("Dataset,Trial,Min Response Time,Response Time,Total CPU Time,Total Wait Time," +
                           "Total Cloudlets Finished,Average Cloudlets Finished,Average Start Time," +
                           "Average Execution Time,Average Finish Time,Average Waiting Time,Throughput," +
@@ -72,7 +78,7 @@ public class CloudSimulation2 {
             }
 
             csvWriter.close();
-            System.out.println("\nAll simulations completed. Results saved to ABC_Results.csv");
+            System.out.println("\nAll simulations completed. Results saved to " + csvFileName);
             
         } catch (Exception e) {
             e.printStackTrace();
@@ -82,7 +88,8 @@ public class CloudSimulation2 {
 
     private static void runSimulation(String dataset, int trial) {
         Locale.setDefault(new Locale("en", "US"));
-        Log.printLine("Starting Cloud Simulation with ABC Algorithm...");
+        String algorithmName = USE_EOBL ? "ABC-EOBL" : "ABC";
+        Log.printLine("Starting Cloud Simulation with " + algorithmName + " Algorithm...");
 
         try {
             int num_user = 1;
@@ -116,7 +123,7 @@ public class CloudSimulation2 {
             broker.submitVmList(vmlist);
             broker.submitCloudletList(cloudletList);
 
-            // Run ABC algorithm
+            // Run ABC algorithm 
             runABCAlgorithm(cloudletList, vmlist);
 
             System.out.println("Starting the simulation...");
@@ -128,7 +135,8 @@ public class CloudSimulation2 {
             // Save results to CSV
             saveResultsToCSV(dataset, trial, newList);
 
-            Log.printLine("Cloud Simulation with ABC finished!");
+            String algorithmNameCapitalized = USE_EOBL ? "ABC-EOBL" : "ABC";
+            Log.printLine("Cloud Simulation with " + algorithmNameCapitalized + " finished!");
         } catch (Exception e) {
             e.printStackTrace();
             Log.printLine("Simulation terminated due to an error");
@@ -136,19 +144,20 @@ public class CloudSimulation2 {
     }
 
     private static void runABCAlgorithm(List<Cloudlet> cloudlets, List<Vm> vms) {
-        System.out.println("\n=== ABC Algorithm Parameters ===");
+        String algorithmName = USE_EOBL ? "ABC-EOBL" : "ABC";
+        System.out.println("\n=== " + algorithmName + " Algorithm Parameters ===");
         
         try {
-            // ABC Algorithm Parameters - Standard ABC configuration
+            // ABC Algorithm Parameters
             int numberOfBees = 30;            // Total swarm size
-            int limit = 5;                   // Limit before abandonment
-            int maxIterations = 50;           // Number of iterations
+            int limit = 5;                    // Limit before abandonment
+            int maxIterations = 5;           // Number of iterations
             
             System.out.println("Problem Size:");
             System.out.println("Total Cloudlets: " + cloudlets.size());
             System.out.println("Total VMs: " + vms.size());
             
-            System.out.println("\nABC Parameters:");
+            System.out.println("\n" + algorithmName + " Parameters:");
             System.out.println("Total Swarm Size: " + numberOfBees);
             System.out.println("Employed Bees: " + (numberOfBees/2));
             System.out.println("Onlooker Bees: " + (numberOfBees/2));
@@ -156,19 +165,38 @@ public class CloudSimulation2 {
             System.out.println("Abandonment Limit: " + limit);
             System.out.println("Max Iterations: " + maxIterations);
             
-            System.out.println("\n=== Starting ABC Optimization ===");
-            System.out.println("Initializing bee population...");
+            if (USE_EOBL) {
+                System.out.println("\nEOBL Parameters:");
+                System.out.println("EOBL Probability: " + EOBL_PROBABILITY);
+                System.out.println("EOBL Jump Rate: " + EOBL_JUMP_RATE);
+            }
             
-            // Create and run ABC algorithm with standard parameters
-            ABC abc = new ABC(
-                cloudlets,
-                vms,
-                numberOfBees,
-                limit,
-                maxIterations
-            );
+            System.out.println("\n=== Starting " + algorithmName + " Optimization ===");
             
-            System.out.println("Running ABC algorithm for " + maxIterations + " iterations...");
+            // Create and run ABC algorithm with selected parameters
+            ABC abc;
+            if (USE_EOBL) {
+                abc = new ABC(
+                    cloudlets,
+                    vms,
+                    numberOfBees,
+                    limit,
+                    maxIterations,
+                    true,               // Use EOBL
+                    EOBL_PROBABILITY,   // EOBL probability
+                    EOBL_JUMP_RATE      // EOBL jump rate
+                );
+            } else {
+                abc = new ABC(
+                    cloudlets,
+                    vms,
+                    numberOfBees,
+                    limit,
+                    maxIterations
+                );
+            }
+            
+            System.out.println("Running " + algorithmName + " algorithm for " + maxIterations + " iterations...");
             
             // Run the algorithm and get the best solution
             long startTime = System.currentTimeMillis();
@@ -189,7 +217,7 @@ public class CloudSimulation2 {
                 vmAssignments[vmId]++;
             }
             
-            System.out.println("\n=== ABC Optimization Results ===");
+            System.out.println("\n=== " + algorithmName + " Optimization Results ===");
             System.out.println("Algorithm completed in " + runtimeInSeconds + " seconds");
             System.out.println("Best fitness: " + abc.getGlobalBestFitness());
             System.out.println("Best makespan: " + abc.getBestMakespan());
@@ -212,11 +240,11 @@ public class CloudSimulation2 {
             System.out.println("Load Variance: " + variance);
             System.out.println("Load Standard Deviation: " + Math.sqrt(variance));
             
-            System.out.println("\nABC Optimization completed successfully!");
+            System.out.println("\n" + algorithmName + " Optimization completed successfully!");
             
         } catch (Exception e) {
             e.printStackTrace();
-            Log.printLine("ABC Algorithm terminated due to an error");
+            Log.printLine("Algorithm terminated due to an error");
         }
     }
 
@@ -394,120 +422,7 @@ public class CloudSimulation2 {
         return broker;
     }
 
-    // Print Cloudlet List with detailed metrics
-    private static void printCloudletList(List<Cloudlet> list) {
-        int size = list.size();
-        Cloudlet cloudlet = null;
-
-        String indent = "    ";
-        Log.printLine();
-        Log.printLine("========== OUTPUT ==========");
-        Log.printLine("Cloudlet ID" + indent + "STATUS" + indent +
-            "Data center ID" + indent + "VM ID" + indent + "Time"
-            + indent + "Start Time" + indent + "Finish Time" + indent + "Waiting Time");
-
-        double waitTimeSum = 0.0;
-        double CPUTimeSum = 0.0;
-        int totalValues = 0;
-        DecimalFormat dft = new DecimalFormat("###,##");
-
-        double response_time[] = new double[size];
-
-        for (int i = 0; i < size; i++) {
-            cloudlet = list.get(i);
-            Log.print(cloudlet.getCloudletId() + indent + indent);
-
-            if (cloudlet.getCloudletStatus() == Cloudlet.SUCCESS) {
-                Log.print("SUCCESS");
-                CPUTimeSum = CPUTimeSum + cloudlet.getActualCPUTime();
-                waitTimeSum = waitTimeSum + cloudlet.getWaitingTime();
-                Log.printLine(
-                    indent + indent + indent + (cloudlet.getResourceId() - 1) + indent + indent + indent + cloudlet.getVmId() +
-                        indent + indent + dft.format(cloudlet.getActualCPUTime()) + indent + indent
-                        + dft.format(cloudlet.getExecStartTime()) +
-                        indent + indent + dft.format(cloudlet.getFinishTime()) + indent + indent + indent
-                        + dft.format(cloudlet.getWaitingTime()));
-                totalValues++;
-
-                response_time[i] = cloudlet.getActualCPUTime();
-            }
-        }
-        DoubleSummaryStatistics stats = DoubleStream.of(response_time).summaryStatistics();
-
-        Log.printLine();
-        System.out.println(String.format("min = %,6f",stats.getMin()));
-        System.out.println(String.format("Response_Time: %,6f",CPUTimeSum / totalValues));
-
-        Log.printLine();
-        Log.printLine(String.format("TotalCPUTime : %,6f",CPUTimeSum));
-        Log.printLine("TotalWaitTime : "+waitTimeSum);
-        Log.printLine("TotalCloudletsFinished : "+totalValues);
-
-        // Average Cloudlets Finished
-        Log.printLine(String.format("AverageCloudletsFinished : %,6f",(CPUTimeSum / totalValues)));
-
-        // Average Start Time
-        double totalStartTime = 0.0;
-        for (int i = 0; i < size; i++) {
-            totalStartTime += cloudletList.get(i).getExecStartTime();
-        }
-        double avgStartTime = totalStartTime / size;
-        System.out.println(String.format("Average StartTime: %,6f",avgStartTime));
-
-        // Average Execution Time
-        double ExecTime = 0.0;
-        for (int i = 0; i < size; i++) {
-            ExecTime += cloudletList.get(i).getActualCPUTime();
-        }
-        double avgExecTime = ExecTime / size;
-        System.out.println(String.format("Average Execution Time: %,6f",avgExecTime));
-
-        // Average Finish Time
-        double totalTime = 0.0;
-        for (int i = 0; i < size; i++) {
-            totalTime += cloudletList.get(i).getFinishTime();
-        }
-        double avgTAT = totalTime / size;
-        System.out.println(String.format("Average FinishTime: %,6f",avgTAT));
-
-        // Average Waiting Time
-        double avgWT = cloudlet.getWaitingTime() / size;
-        System.out.println(String.format("Average Waiting time: %,6f",avgWT));
-
-        // Throughput
-        double maxFT = 0.0;
-        for (int i = 0; i < size; i++) {
-            double currentFT = cloudletList.get(i).getFinishTime();
-            if (currentFT > maxFT) {
-                maxFT = currentFT;
-            }
-        }
-        double throughput = size / maxFT;
-        System.out.println(String.format("Throughput: %,9f",throughput));
-
-        // Makespan
-        double makespan = 0.0;
-        double makespan_total = makespan + cloudlet.getFinishTime();
-        System.out.println(String.format("Makespan: %,f",makespan_total));
-
-        // Imbalance Degree
-        double degree_of_imbalance = (stats.getMax() - stats.getMin()) / (CPUTimeSum / totalValues);
-        System.out.println(String.format("Imbalance Degree: %,3f",degree_of_imbalance));
-
-        // Scheduling Length
-        double scheduling_length = waitTimeSum + makespan_total;
-        Log.printLine(String.format("Total Scheduling Length: %,f", scheduling_length));
-
-        // CPU Resource Utilization
-        double resource_utilization = (CPUTimeSum / (makespan_total * 54)) * 100;
-        Log.printLine(String.format("Resouce Utilization: %,f",resource_utilization));
-
-        // Energy Consumption
-        Log.printLine(String.format("Total Energy Consumption: %,2f  kWh",
-            (datacenter1.getPower() + datacenter2.getPower() + datacenter3.getPower() + datacenter4.getPower()
-                + datacenter5.getPower() + datacenter6.getPower()) / (3600 * 1000)));
-    }
-
+    // Method to save results to CSV
     private static void saveResultsToCSV(String dataset, int trial, List<Cloudlet> list) throws IOException {
         int size = list.size();
         Cloudlet cloudlet = null;
@@ -577,4 +492,4 @@ public class CloudSimulation2 {
             throughput, makespan_total, degree_of_imbalance, scheduling_length, resource_utilization, totalEnergy));
         csvWriter.flush();
     }
-}
+} 
