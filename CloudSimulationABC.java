@@ -5,6 +5,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -41,139 +42,159 @@ public class CloudSimulationABC {
     private static List<Cloudlet> cloudletList;
     private static List<Vm> vmlist;
     private static int bot = 10;
+    private static BufferedWriter csvWriter;
 
     // Simulation configuration parameters
-    private static final boolean USE_EOBL = false; // Optional enhancement to basic ABC algorithm
+    private static final boolean USE_EOBL = true; // Optional enhancement to basic ABC algorithm
     private static final int MAX_ITERATIONS = 5;   // Maximum iterations (termination criterion)
     private static final int POPULATION_SIZE = 30; // Swarm size (must be even: 50% employed, 50% onlooker)
     private static final double EOBL_COEFFICIENT = 0.3; // Controls degree of opposition in EOBL
+    private static final int NUM_TRIALS = 10;      // Number of trials to run
 
     public static void main(String[] args) {
         Locale.setDefault(new Locale("en", "US"));
         Log.printLine("Starting Cloud Simulation with ABC" + (USE_EOBL ? "+EOBL" : "") + "...");
 
         try {
-            int num_user = 1;
-            Calendar calendar = Calendar.getInstance();
-            boolean trace_flag = false;
-
-            BufferedWriter outputWriter = null;
-            outputWriter = new BufferedWriter(new FileWriter("abc_results.txt"));
-
-            CloudSim.init(num_user, calendar, trace_flag);
-
-            int hostId = 0;
-
-            datacenter1 = createDatacenter("DataCenter_1", hostId);
-            hostId = 3;
-            datacenter2 = createDatacenter("DataCenter_2", hostId);
-            hostId = 6;
-            datacenter3 = createDatacenter("DataCenter_3", hostId);
-            hostId = 9;
-            datacenter4 = createDatacenter("DataCenter_4", hostId);
-            hostId = 12;
-            datacenter5 = createDatacenter("DataCenter_5", hostId);
-            hostId = 15;
-            datacenter6 = createDatacenter("DataCenter_6", hostId);
-
-            DatacenterBroker broker = createBroker();
-            int brokerId = broker.getId();
-            int vmNumber = 54;
-            int cloudletNumber = 7395;
-//            int cloudletNumber = bot*1000;
-
-            vmlist = createVM(brokerId, vmNumber);
-            cloudletList = createCloudlet(brokerId, cloudletNumber);
-
-            broker.submitVmList(vmlist);
-            broker.submitCloudletList(cloudletList);
-
-            int cloudletLoopingNumber = cloudletNumber / vmNumber - 1;
-
-            for (int cloudletIterator = 0; cloudletIterator <= cloudletLoopingNumber; cloudletIterator++) {
-                System.out.println("Cloudlet Iteration Number " + cloudletIterator);
-
-                for (int dataCenterIterator = 1; dataCenterIterator <= 6; dataCenterIterator++) {
-                    
-                    // Parameters for ABC algorithm
-                    int Imax = MAX_ITERATIONS; // Maximum iterations
-                    int populationSize = POPULATION_SIZE; // Swarm size - 15 employed bees, 15 onlooker bees, 1 scout
-                    
-                    // In ABC algorithm, "dimensions" refers to the number of decision variables in a solution
-                    // In our case, each datacenter processes 9 cloudlets at a time, so each food source (solution)
-                    // has 9 dimensions (one VM assignment for each cloudlet)
-                    int dimensions = 9; // Each datacenter processes 9 cloudlets
-                    
-                    // The "limit" parameter determines when a food source should be abandoned
-                    // In ABC literature, this is typically calculated as:
-                    // limit = 0.5 * (employed bee count * dimensions)
-                    // This formula is based on the idea that each employed bee should have multiple
-                    // attempts to improve each dimension before abandonment
-                    // The 0.5 factor is a recommended value from ABC literature to balance
-                    // exploration and exploitation
-                    double limit = 0.5 * (populationSize/2) * dimensions;
-                    
-                    // EOBL Coefficient
-                    double d = EOBL_COEFFICIENT;
-                    
-                    System.out.println("ABC Parameters:");
-                    System.out.println("- Population: " + populationSize + 
-                           " (Employed=" + populationSize/2 + 
-                           ", Onlooker=" + populationSize/2 + 
-                           ", Scout=1)");
-                    System.out.println("- Max Iterations: " + Imax);  
-                    System.out.println("- Dimensions: " + dimensions);
-                    System.out.println("- Limit: " + limit);
-                    System.out.println("- EOBL: " + (USE_EOBL ? "Enabled (d=" + d + ")" : "Disabled"));
-                    
-                    // Initialize ABC algorithm with EOBL flag
-                    ABC abc = new ABC(Imax, populationSize, limit, d, USE_EOBL, cloudletList, vmlist, cloudletNumber);
-
-                    // Initialize population
-                    System.out.println("Datacenter " + dataCenterIterator + " Population Initialization");
-                    Population population = abc.initPopulation(cloudletNumber, dataCenterIterator);
-
-                    // Run the ABC algorithm
-                    abc.runABCAlgorithm(population, dataCenterIterator, cloudletIterator);
-
-                    // Get the best solution
-                    int[] bestSolution = abc.getBestVmAllocationForDatacenter(dataCenterIterator);
-                    double bestFitness = abc.getBestFitnessForDatacenter(dataCenterIterator);
-                    
-                    System.out.println("Best solution found for datacenter " + dataCenterIterator + 
-                                      " with fitness " + bestFitness);
-
-                    // Assign tasks to VMs based on bestSolution
-                    for (int assigner = 0 + (dataCenterIterator - 1) * 9 + cloudletIterator * 54;
-                         assigner < 9 + (dataCenterIterator - 1) * 9 + cloudletIterator * 54; assigner++) {
-                        int vmId = bestSolution[assigner - (dataCenterIterator - 1) * 9 - cloudletIterator * 54];
-                        broker.bindCloudletToVm(assigner, vmId);
-                    }
-                    
-                    // Log result to file
-                    outputWriter.write("Datacenter " + dataCenterIterator + 
-                                      ", Iteration " + cloudletIterator + 
-                                      ", Fitness=" + bestFitness + "\n");
-                }
+            // Setup CSV file for results
+            csvWriter = new BufferedWriter(new FileWriter("abc_results.csv"));
+            // Write CSV header
+            csvWriter.write("Trial,Total Wait Time,Average Start Time,Average Execution Time,Average Finish Time,Throughput,Makespan,Imbalance Degree,Total Scheduling Length,Resource Utilization,Energy Consumption\n");
+            
+            // Run multiple trials
+            for (int trial = 1; trial <= NUM_TRIALS; trial++) {
+                Log.printLine("\n\n========== TRIAL " + trial + " OF " + NUM_TRIALS + " ==========\n");
+                runSimulation(trial);
             }
-
-            // Start simulation and print results as in Lampiran 4
-            CloudSim.startSimulation();
-
-            outputWriter.flush();
-            outputWriter.close();
-
-            List<Cloudlet> newList = broker.getCloudletReceivedList();
-
-            CloudSim.stopSimulation();
-
-            printCloudletList(newList);
-
-            Log.printLine("Cloud Simulation with ABC" + (USE_EOBL ? "+EOBL" : "") + " finished!");
+            
+            csvWriter.close();
+            Log.printLine("\nAll trials completed. Results written to abc_results.csv");
+            
         } catch (Exception e) {
             e.printStackTrace();
             Log.printLine("Simulation terminated due to an error");
+            try {
+                if (csvWriter != null) {
+                    csvWriter.close();
+                }
+            } catch (IOException ioe) {
+                ioe.printStackTrace();
+            }
         }
+    }
+    
+    private static void runSimulation(int trialNum) throws Exception {
+        int num_user = 1;
+        Calendar calendar = Calendar.getInstance();
+        boolean trace_flag = false;
+
+
+        CloudSim.init(num_user, calendar, trace_flag);
+
+        int hostId = 0;
+
+        datacenter1 = createDatacenter("DataCenter_1", hostId);
+        hostId = 3;
+        datacenter2 = createDatacenter("DataCenter_2", hostId);
+        hostId = 6;
+        datacenter3 = createDatacenter("DataCenter_3", hostId);
+        hostId = 9;
+        datacenter4 = createDatacenter("DataCenter_4", hostId);
+        hostId = 12;
+        datacenter5 = createDatacenter("DataCenter_5", hostId);
+        hostId = 15;
+        datacenter6 = createDatacenter("DataCenter_6", hostId);
+
+        DatacenterBroker broker = createBroker();
+        int brokerId = broker.getId();
+        int vmNumber = 54;
+        int cloudletNumber = 7395;
+//            int cloudletNumber = bot*1000;
+
+        vmlist = createVM(brokerId, vmNumber);
+        cloudletList = createCloudlet(brokerId, cloudletNumber);
+
+        broker.submitVmList(vmlist);
+        broker.submitCloudletList(cloudletList);
+
+        int cloudletLoopingNumber = cloudletNumber / vmNumber - 1;
+
+        for (int cloudletIterator = 0; cloudletIterator <= cloudletLoopingNumber; cloudletIterator++) {
+            System.out.println("Cloudlet Iteration Number " + cloudletIterator);
+
+            for (int dataCenterIterator = 1; dataCenterIterator <= 6; dataCenterIterator++) {
+                
+                // Parameters for ABC algorithm
+                int Imax = MAX_ITERATIONS; // Maximum iterations
+                int populationSize = POPULATION_SIZE; // Swarm size - 15 employed bees, 15 onlooker bees, 1 scout
+                
+                // In ABC algorithm, "dimensions" refers to the number of decision variables in a solution
+                // In our case, each datacenter processes 9 cloudlets at a time, so each food source (solution)
+                // has 9 dimensions (one VM assignment for each cloudlet)
+                int dimensions = 9; // Each datacenter processes 9 cloudlets
+                
+                // The "limit" parameter determines when a food source should be abandoned
+                // In ABC literature, this is typically calculated as:
+                // limit = 0.5 * (employed bee count * dimensions)
+                // This formula is based on the idea that each employed bee should have multiple
+                // attempts to improve each dimension before abandonment
+                // The 0.5 factor is a recommended value from ABC literature to balance
+                // exploration and exploitation
+                double limit = 0.5 * (populationSize/2) * dimensions;
+                
+                // EOBL Coefficient
+                double d = EOBL_COEFFICIENT;
+                
+                System.out.println("ABC Parameters:");
+                System.out.println("- Population: " + populationSize + 
+                       " (Employed=" + populationSize/2 + 
+                       ", Onlooker=" + populationSize/2 + 
+                       ", Scout=1)");
+                System.out.println("- Max Iterations: " + Imax);  
+                System.out.println("- Dimensions: " + dimensions);
+                System.out.println("- Limit: " + limit);
+                System.out.println("- EOBL: " + (USE_EOBL ? "Enabled (d=" + d + ")" : "Disabled"));
+                
+                // Initialize ABC algorithm with EOBL flag
+                ABC abc = new ABC(Imax, populationSize, limit, d, USE_EOBL, cloudletList, vmlist, cloudletNumber);
+
+                // Initialize population
+                System.out.println("Datacenter " + dataCenterIterator + " Population Initialization");
+                Population population = abc.initPopulation(cloudletNumber, dataCenterIterator);
+
+                // Run the ABC algorithm
+                abc.runABCAlgorithm(population, dataCenterIterator, cloudletIterator);
+
+                // Get the best solution
+                int[] bestSolution = abc.getBestVmAllocationForDatacenter(dataCenterIterator);
+                double bestFitness = abc.getBestFitnessForDatacenter(dataCenterIterator);
+                
+                System.out.println("Best solution found for datacenter " + dataCenterIterator + 
+                                  " with fitness " + bestFitness);
+
+                // Assign tasks to VMs based on bestSolution
+                for (int assigner = 0 + (dataCenterIterator - 1) * 9 + cloudletIterator * 54;
+                     assigner < 9 + (dataCenterIterator - 1) * 9 + cloudletIterator * 54; assigner++) {
+                    int vmId = bestSolution[assigner - (dataCenterIterator - 1) * 9 - cloudletIterator * 54];
+                    broker.bindCloudletToVm(assigner, vmId);
+                }
+                
+
+            }
+        }
+
+        // Start simulation and print results as in Lampiran 4
+        CloudSim.startSimulation();
+
+
+
+        List<Cloudlet> newList = broker.getCloudletReceivedList();
+
+        CloudSim.stopSimulation();
+
+        printCloudletList(newList, trialNum);
+
+        Log.printLine("Cloud Simulation with ABC" + (USE_EOBL ? "+EOBL" : "") + " Trial " + trialNum + " finished!");
     }
 
 
@@ -340,15 +361,14 @@ public class CloudSimulationABC {
     return broker;
   }
 
-  private static void printCloudletList(List<Cloudlet> list) throws FileNotFoundException {
-
+  private static void printCloudletList(List<Cloudlet> list, int trialNum) throws FileNotFoundException {
     // Initializing the printed output to zero
     int size = list.size();
     Cloudlet cloudlet = null;
 
     String indent = "    ";
     Log.printLine();
-    Log.printLine("========== OUTPUT ==========");
+    Log.printLine("========== OUTPUT TRIAL " + trialNum + " ==========");
     Log.printLine("Cloudlet ID" + indent + "STATUS" + indent +
         "Data center ID" + indent + "VM ID" + indent + "Time"
         + indent + "Start Time" + indent + "Finish Time" + indent + "Waiting Time");
@@ -448,12 +468,30 @@ public class CloudSimulationABC {
 
     // CPU Resource Utilization
     double resource_utilization = (CPUTimeSum / (makespan_total * 54)) * 100;
-    Log.printLine(String.format("Resouce Utilization: %,f",resource_utilization));
+    Log.printLine(String.format("Resource Utilization: %,f",resource_utilization));
 
     // Energy Consumption
-    Log.printLine(String.format("Total Energy Consumption: %,2f  kWh",
-        (datacenter1.getPower() + datacenter2.getPower() + datacenter3.getPower() + datacenter4.getPower()
-            + datacenter5.getPower() + datacenter6.getPower()) / (3600 * 1000)));
+    double energyConsumption = (datacenter1.getPower() + datacenter2.getPower() + datacenter3.getPower() + 
+                              datacenter4.getPower() + datacenter5.getPower() + datacenter6.getPower()) / (3600 * 1000);
+    Log.printLine(String.format("Total Energy Consumption: %,2f  kWh", energyConsumption));
+    
+    // Write results to CSV file
+    try {
+        csvWriter.write(String.format("%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n",
+            trialNum,
+            waitTimeSum,
+            avgStartTime,
+            avgExecTime,
+            avgTAT,
+            throughput,
+            makespan_total,
+            degree_of_imbalance,
+            scheduling_length,
+            resource_utilization,
+            energyConsumption));
+        csvWriter.flush();
+    } catch (IOException e) {
+        e.printStackTrace();
+    }
   }
-
 }
