@@ -45,7 +45,7 @@ public class CloudSimulationABC {
     private static BufferedWriter csvWriter;
 
     // Simulation configuration parameters
-    private static final boolean USE_EOBL = true; // Optional enhancement to basic ABC algorithm
+    private static final boolean USE_EOBL = false; // Optional enhancement to basic ABC algorithm
     private static final int MAX_ITERATIONS = 5;   // Maximum iterations (termination criterion)
     private static final int POPULATION_SIZE = 30; // Swarm size (must be even: 50% employed, 50% onlooker)
     private static final double EOBL_COEFFICIENT = 0.3; // Controls degree of opposition in EOBL
@@ -126,7 +126,7 @@ public class CloudSimulationABC {
                 
                 // Parameters for ABC algorithm
                 int Imax = MAX_ITERATIONS; // Maximum iterations
-                int populationSize = POPULATION_SIZE; // Swarm size - 15 employed bees, 15 onlooker bees, 1 scout
+                int populationSize = POPULATION_SIZE; // Swarm size - must be even to support 50/50 split
                 
                 // In ABC algorithm, "dimensions" refers to the number of decision variables in a solution
                 // In our case, each datacenter processes 9 cloudlets at a time, so each food source (solution)
@@ -136,26 +136,24 @@ public class CloudSimulationABC {
                 // The "limit" parameter determines when a food source should be abandoned
                 // In ABC literature, this is typically calculated as:
                 // limit = 0.5 * (employed bee count * dimensions)
-                // This formula is based on the idea that each employed bee should have multiple
-                // attempts to improve each dimension before abandonment
-                // The 0.5 factor is a recommended value from ABC literature to balance
-                // exploration and exploitation
+                // This represents the maximum allowed trials without improvement
                 double limit = 0.5 * (populationSize/2) * dimensions;
                 
-                // EOBL Coefficient
+                // EOBL Coefficient (optional enhancement)
                 double d = EOBL_COEFFICIENT;
                 
-                System.out.println("ABC Parameters:");
-                System.out.println("- Population: " + populationSize + 
-                       " (Employed=" + populationSize/2 + 
-                       ", Onlooker=" + populationSize/2 + 
-                       ", Scout=1)");
-                System.out.println("- Max Iterations: " + Imax);  
+                System.out.println("\n====== ABC ALGORITHM CONFIGURATION ======");
+                System.out.println("- Swarm Size: " + populationSize);
+                System.out.println("- Employed Bees: " + populationSize/2 + " (50% of swarm)");
+                System.out.println("- Onlooker Bees: " + populationSize/2 + " (50% of swarm)");
+                System.out.println("- Scout Bees: 1");
                 System.out.println("- Dimensions: " + dimensions);
                 System.out.println("- Limit: " + limit);
-                System.out.println("- EOBL: " + (USE_EOBL ? "Enabled (d=" + d + ")" : "Disabled"));
+                System.out.println("- Max Iterations: " + Imax);
+                System.out.println("- EOBL Enhancement: " + (USE_EOBL ? "Enabled (d=" + d + ")" : "Disabled"));
+                System.out.println("========================================\n");
                 
-                // Initialize ABC algorithm with EOBL flag
+                // Initialize ABC algorithm
                 ABC abc = new ABC(Imax, populationSize, limit, d, USE_EOBL, cloudletList, vmlist, cloudletNumber);
 
                 // Initialize population

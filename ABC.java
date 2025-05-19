@@ -74,6 +74,7 @@ public class ABC {
 
     // Main ABC algorithm - following pseudocode exactly
     public void runABCAlgorithm(Population population, int dataCenterIterator, int cloudletIteration) {
+        // -------- INITIALIZATION PHASE --------
         // Step 1: begin
         System.out.println("Starting ABC algorithm");
         
@@ -95,10 +96,12 @@ public class ABC {
             abandonmentCounter[i] = 0;
         }
         
+        // -------- MAIN LOOP PHASE --------
         // Step 6: Main loop - termination condition check
         while (iteration <= Imax) {
-            System.out.println("Starting iteration " + iteration + " of " + Imax);
+            System.out.println("\n========== ITERATION " + iteration + " OF " + Imax + " ==========");
             
+            // -------- EMPLOYED BEE PHASE --------
             // Steps 7-10: Employed Bee Phase
             System.out.println("PHASE 1: Employed Bee Phase");
             employedBeePhase(population, dataCenterIterator, cloudletIteration);
@@ -107,6 +110,7 @@ public class ABC {
             System.out.println("Calculating selection probabilities based on fitness");
             double[] probabilities = calculateProbabilities(population);
             
+            // -------- ONLOOKER BEE PHASE --------
             // Steps 12-17: Onlooker Bee Phase
             System.out.println("PHASE 2: Onlooker Bee Phase");
             onlookerBeePhase(population, probabilities, dataCenterIterator, cloudletIteration);
@@ -115,6 +119,7 @@ public class ABC {
             System.out.println("Storing best food source found so far");
             storeBestFoodSource(population, dataCenterIterator);
             
+            // -------- SCOUT BEE PHASE --------
             // Steps 18-21: Scout Bee Phase
             System.out.println("PHASE 3: Scout Bee Phase");
             // Step 19: Check if any employed bee becomes scout bee
@@ -128,7 +133,7 @@ public class ABC {
                 System.out.println("No food sources abandoned - no scout bee needed");
             }
             
-            // Apply EOBL to improve solution quality (optional enhancement)
+            // Optional enhancement (not in original pseudocode)
             if (useEOBL) {
                 System.out.println("ENHANCEMENT: Applying EOBL to improve solution quality");
                 applyEOBL(population, dataCenterIterator, cloudletIteration);
@@ -139,8 +144,7 @@ public class ABC {
             
             // Output current best
             int dcIndex = dataCenterIterator - 1;
-            System.out.println("Iteration " + (iteration-1) + " Best Fitness for DC" + dataCenterIterator 
-                    + ": " + globalBestFitnesses[dcIndex]);
+            System.out.println("Current Best Fitness for DC" + dataCenterIterator + ": " + globalBestFitnesses[dcIndex]);
             
             // Check termination condition (Step 6 continuation)
             if (iteration > Imax) {
@@ -150,9 +154,10 @@ public class ABC {
             }
         }
         
+        // -------- FINAL SOLUTION PHASE --------
         // Step 23-24: End of algorithm
-        System.out.println("Final Best Solution Found - Fitness: " + 
-                           globalBestFitnesses[dataCenterIterator - 1]);
+        System.out.println("\nFINAL BEST SOLUTION FOUND:");
+        System.out.println("DC" + dataCenterIterator + " Fitness: " + globalBestFitnesses[dataCenterIterator - 1]);
     }
     
     // Check if any food source has reached abandonment limit (therefore, scout bee exists)
@@ -194,7 +199,9 @@ public class ABC {
         Random random = new Random();
         
         System.out.println("Employed Bee Phase: Processing " + employedBeeCount + " employed bees");
-        System.out.println("Role: Collecting food from determined food sources for the hive");
+        System.out.println("Role: Collect food from determined food sources for the hive");
+        System.out.println("      After identifying food source, they can return to extract more food or");
+        System.out.println("      share information by dancing in a designated area");
         
         // Process only the employed bees (first half of population)
         for (int i = 0; i < employedBeeCount; i++) {
@@ -283,7 +290,10 @@ public class ABC {
         Random random = new Random();
         
         System.out.println("Onlooker Bee Phase: Processing " + onlookerBeeCount + " onlooker bees");
-        System.out.println("Role: Overseeing employed bees and verifying the quality of food sources");
+        System.out.println("Role: Oversee employed bees and verify the quality of food sources");
+        System.out.println("      Choose food sources based on their quality (fitness)");
+        System.out.println("      Demonstrate Positive Feedback by increasing bees at good sources");
+        System.out.println("      Demonstrate Negative Feedback by abandoning low-quality sources");
         
         // Start index for onlooker bees
         int onlookerStartIndex = employedBeeCount;
@@ -378,7 +388,9 @@ public class ABC {
     // Scout Bee Phase - steps 18-21 of pseudocode
     private void scoutBeePhase(Population population, int dataCenterIterator, int cloudletIteration) {
         System.out.println("Scout Bee Phase: Looking for abandoned food sources");
-        System.out.println("Role: Searching and exploring for new valid food source locations");
+        System.out.println("Role: Search and explore for new valid food source locations");
+        System.out.println("      Demonstrate 'Fluctuations' by exploring new areas of the search space");
+        System.out.println("      Scout is triggered when a food source is exhausted/abandoned");
         
         // Find the most abandoned food source
         int maxAbandonmentIndex = -1;
@@ -392,10 +404,11 @@ public class ABC {
         }
         
         // Step 20: If the most abandoned food source exceeds limit, send the scout bee to random food source
+        // Note: According to the ABC algorithm, only ONE scout bee exists, so only replace the most abandoned source
         if (maxAbandonmentCount > limit && maxAbandonmentIndex >= 0) {
             System.out.println("Food source at position " + maxAbandonmentIndex + 
                               " abandoned after " + maxAbandonmentCount + " trials (limit: " + limit + ")");
-            System.out.println("Demonstrating 'Fluctuations' - Scout bee is exploring for new food source");
+            System.out.println("Scout bee is exploring for new food source");
             
             // Generate completely new random solution (Scout bee exploring new area)
             Individual scout = new Individual(population.getIndividual(maxAbandonmentIndex).getChromosomeLength(), 
